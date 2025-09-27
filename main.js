@@ -1,7 +1,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
-const firebaseConfig = {"apiKey": "AIzaSyBDayetHZ2eoNjGnqcsqbZUqjQeS7WUiS0", "authDomain": "prestamos-43d7f.firebaseapp.com", "projectId": "prestamos-43d7f", "storageBucket": "prestamos-43d7f.firebasestorage.app", "messagingSenderId": "150090420052", "appId": "1:150090420052:web:7fe16cd94f7314e226c2c1"};
+const firebaseConfig = {
+  apiKey: "AIzaSyBDayetHZ2eoNjGnqcsqbZUqjQeS7WUiS0",
+  authDomain: "prestamos-43d7f.firebaseapp.com",
+  projectId: "prestamos-43d7f",
+  storageBucket: "prestamos-43d7f.firebasestorage.app",
+  messagingSenderId: "150090420052",
+  appId: "1:150090420052:web:7fe16cd94f7314e226c2c1"
+};
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -9,6 +16,7 @@ const db = getFirestore(app);
 function $id(id){ return document.getElementById(id); }
 function money(n){ return Number(n||0).toFixed(2); }
 
+// ---------- CARGAS BÁSICAS ----------
 async function loadClients(){
   const snap = await getDocs(collection(db,"clientes"));
   $id("clientesList").innerHTML = "";
@@ -54,7 +62,7 @@ async function loadAbonos(){
   }
 }
 
-// register client
+// ---------- FORMULARIOS ----------
 $id("clienteForm").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const nombre = $id("clienteNombre").value.trim();
@@ -63,9 +71,9 @@ $id("clienteForm").addEventListener("submit", async (e)=>{
   await addDoc(collection(db,"clientes"), { nombre, telefono });
   $id("clienteForm").reset();
   await loadClients();
+  await refreshDashboard();
 });
 
-// register loan
 $id("prestamoForm").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const clienteId = $id("prestamoCliente").value;
@@ -76,15 +84,15 @@ $id("prestamoForm").addEventListener("submit", async (e)=>{
   const observacion = $id("prestamoObs").value.trim();
   if(!clienteId) return alert("Seleccione cliente");
   if(!monto || !cuotas) return alert("Monto y cuotas requeridos");
-  const prestRef = await addDoc(collection(db,"prestamos"), { clienteId, monto, interes, cuotas, banco, observacion });
+  const prestRef = await addDoc(collection(db,"prestamos"), { clienteId, monto, interes, cuotas, banco, observacion, fecha:new Date() });
   for(let i=1;i<=cuotas;i++){
     await addDoc(collection(db,"cuotas"), { prestamoId: prestRef.id, numero:i, monto: Number((monto/cuotas).toFixed(2)), pagada:false });
   }
   $id("prestamoForm").reset();
   await loadPrestamosList();
+  await refreshDashboard();
 });
 
-// register abono
 $id("abonoForm").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const prestamoId = $id("abonoPrestamo").value;
@@ -110,14 +118,14 @@ $id("abonoForm").addEventListener("submit", async (e)=>{
   $id("abonoForm").reset();
   await loadAbonos();
   await refreshHistorial();
+  await refreshDashboard();
 });
 
-// filter prestamos for abonos by client
 $id("filtroClienteAbono").addEventListener("change", async (e)=>{
   await populatePrestamosSelect(e.target.value);
 });
 
-// HISTORIAL
+// ---------- HISTORIAL ----------
 async function refreshHistorial(){
   const filterText = $id("historialFiltro").value.trim().toLowerCase();
   const prestamosSnap = await getDocs(collection(db,"prestamos"));
@@ -191,12 +199,118 @@ async function refreshHistorial(){
     };
   });
 }
-
 $id("btnRefrescarHistorial").addEventListener("click", refreshHistorial);
 
-// initial
+// ---------- DASHBOARD ----------
+let chartInstance;
+let chartClientes;
+
+async function refreshDashboard(){
+  // totales mes actual vs mes anterior
+  const now=new Date();
+  const currentMonth=now.getMonth();
+  const lastMonth=(currentMonth+11)%12;
+
+  let prestamosActual=0,prestamosAnterior=0;
+  let abonosActual=0,abonosAnterior=0;
+
+  const presSnap = await getDocs(collection(db,"prestamos"));
+  presSnap.forEach(p=>{
+    const d=p.data();
+    const fecha=d.fecha?.toDate?.()||new Date(d.fecha||now);
+    if(fecha.getMonth()===currentMonth) prestamosActual+=Number(d.monto||0);
+    else if(fecha.getMonth()===lastMonth) prestamosAnterior+=Number(d.monto||0);
+  });
+
+  const abSnap = await getDocs(collection(db,"abonos"));
+  abSnap.forEach(a=>{
+    const d=a.data();
+    const fecha=d.fecha?.toDate?.()||new Date(d.fecha||now);
+    if(fecha.getMonth()===currentMonth) abonosActual+=Number(d.monto||0);
+    else if(fecha.getMonth()===lastMonth) abonosAnterior+=Number(d.monto||0);
+  });
+
+  $id("dashTotalPrestamos").textContent=money(prestamosActual);
+  $id("dashTotalAbonos").textContent=money(abonosActual);
+  $id("dashPrestamosTrend").textContent=prestamosActual>=prestamosAnterior?"🔼 vs mes anterior":"🔽 vs mes anterior";
+  $id("dashAbonosTrend").textContent=abonosActual>=abonosAnterior?"🔼 vs mes anterior":"🔽 vs mes anterior";
+
+  // gráfico mes actual vs anterior
+  const ctx=document.getElementById("dashChart").getContext("2d");
+  if(chartInstance){chartInstance.destroy();}
+  chartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:['Mes actual','Mes anterior'],
+      datasets:[
+        {label:'Préstamos',data:[prestamosActual,prestamosAnterior],backgroundColor:'#e84118'},
+        {label:'Abonos',data:[abonosActual,abonosAnterior],backgroundColor:'#44bd32'}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+
+  // gráfico préstamos por cliente (pie)
+if(chartClientes){ chartClientes.destroy(); }
+
+// armamos arrays
+const presSnap2 = await getDocs(collection(db,"prestamos"));
+const cliSnap2 = await getDocs(collection(db,"clientes"));
+
+const montosPorCliente = {};
+cliSnap2.forEach(c => montosPorCliente[c.id]=0);
+
+presSnap2.forEach(p=>{
+  const d=p.data();
+  montosPorCliente[d.clienteId]=(montosPorCliente[d.clienteId]||0)+Number(d.monto||0);
+});
+
+// filtramos solo los que tienen monto >0
+const totalPrestamosClientes = Object.values(montosPorCliente).reduce((a,b)=>a+b,0);
+const nombresClientes = [];
+const valoresPrestamos = [];
+
+for(const [cid,monto] of Object.entries(montosPorCliente)){
+  if(monto>0){
+    // nombre cliente
+    const nombre = cliSnap2.docs.find(d=>d.id===cid)?.data().nombre || cid;
+    const porcentaje = ((monto/totalPrestamosClientes)*100).toFixed(1);
+    nombresClientes.push(`${nombre} – $${money(monto)} (${porcentaje}%)`);
+    valoresPrestamos.push(monto);
+  }
+}
+
+const ctxClientes=document.getElementById("dashChartClientes").getContext("2d");
+chartClientes=new Chart(ctxClientes,{
+  type:'doughnut',  // también puedes usar 'pie'
+  data:{
+    labels:nombresClientes,
+    datasets:[{
+      label:'Monto total de préstamos',
+      data:valoresPrestamos,
+      backgroundColor: [
+        '#0097e6','#44bd32','#e84118','#8c7ae6','#fbc531','#00a8ff','#4cd137'
+      ]
+    }]
+  },
+  options:{
+    responsive:true,
+    plugins:{
+      legend:{position:'right'}
+    }
+  }
+});
+}
+
+// redibujar dashboard al entrar en pestaña
+document.querySelector('button[data-bs-target="#tab-dashboard"]').addEventListener('shown.bs.tab', () => {
+  refreshDashboard();
+});
+
+// ---------- INICIAL ----------
 await loadClients();
 await loadPrestamosList();
 await populatePrestamosSelect();
 await loadAbonos();
 await refreshHistorial();
+await refreshDashboard();

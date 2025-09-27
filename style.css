@@ -1,1 +1,11 @@
-body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial; } table#historialTable td, table#historialTable th { vertical-align: middle; }
+body { 
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+ } 
+
+table#historialTable td, table#historialTable th {
+     vertical-align: middle; 
+    }
+    
+#dashChart {
+  max-height: 250px;
+}
