@@ -33,21 +33,72 @@ async function loadClients(){
 async function loadPrestamosList(){
   const snap = await getDocs(collection(db,"prestamos"));
   $id("prestamosList").innerHTML = "";
+
+  // Traemos las cuotas para saber vencidas/próximas
+  const cuotasSnap = await getDocs(collection(db,"cuotas"));
+  const cuotasByPrestamo = {};
+  for(const c of cuotasSnap.docs){
+    const d = c.data();
+    (cuotasByPrestamo[d.prestamoId] ||= []).push(d);
+  }
+
   for(const pdoc of snap.docs){
     const p = pdoc.data();
-    $id("prestamosList").innerHTML += `<li class="list-group-item"><strong>Cliente ID:</strong> ${p.clienteId} — Monto ${money(p.monto)} — Cuotas: ${p.cuotas} <br><small>Banco: ${p.banco||'-'} | Obs: ${p.observacion||'-'}</small></li>`;
+    const cuotas = cuotasByPrestamo[pdoc.id] || [];
+    
+    // calcular vencidas y próximas (ejemplo: vencidas = pagada==false y fecha<ahora)
+    let vencidas = 0, proximas = 0;
+    const hoy = new Date();
+    for(const c of cuotas){
+      const fechaCuota = c.vencimiento?.toDate?.() || new Date(c.vencimiento || hoy); // Usar vencimiento
+      
+      const diffDias = (fechaCuota.getTime() - hoy.getTime())/(1000*60*60*24);
+
+      if(!c.pagada && fechaCuota < hoy){ 
+        vencidas++; 
+      } else if(!c.pagada && diffDias <= 7){ // próximas en 7 días
+        proximas++; 
+      }
+    }
+
+    // estilo según estado
+    let borderClass = '';
+    if(vencidas>0) borderClass='border-start border-4 border-danger';
+    else if(proximas>0) borderClass='border-start border-4 border-warning';
+
+    let estadoText='';
+    if(vencidas>0) estadoText=`<small class="text-danger">${vencidas} cuota(s) vencida(s)</small>`;
+    else if(proximas>0) estadoText=`<small class="text-warning">${proximas} próxima(s) a vencer</small>`;
+
+    const fechaCreacion = p.fecha?.toDate ? p.fecha.toDate() : new Date(p.fecha);
+    const fechaStr = fechaCreacion.toLocaleDateString();
+    $id("prestamosList").innerHTML += `
+      <li class="list-group-item ${borderClass}">
+        <strong>Cliente ID:</strong> ${p.clienteId} — Monto ${money(p.monto)} — Cuotas: ${p.cuotas}
+        <br><small>Banco: ${p.banco||'-'} | Obs: ${p.observacion||'-'} | <b>Fecha:</b> ${fechaStr}</small>
+        <br>${estadoText}
+      </li>
+    `;
   }
-  await populatePrestamosSelect();
 }
 
 async function populatePrestamosSelect(clienteFiltro=''){
   let q = collection(db,"prestamos");
   if(clienteFiltro) q = query(q, where("clienteId","==", clienteFiltro));
   const snap = await getDocs(q);
+  
+  const clientsSnap = await getDocs(collection(db,"clientes"));
+  const clientsById = {};
+  for(const c of clientsSnap.docs) clientsById[c.id] = c.data().nombre;
+
   $id("abonoPrestamo").innerHTML = "<option value=''>Seleccione préstamo</option>";
+  
   for(const docu of snap.docs){
     const d = docu.data();
-    $id("abonoPrestamo").innerHTML += `<option value="${docu.id}">${docu.id} — Cliente:${d.clienteId} — ${money(d.monto)}</option>`;
+    const clientName = clientsById[d.clienteId] || d.clienteId; 
+    const observacion = d.observacion ? ` | Obs: ${d.observacion}` : '';
+    
+    $id("abonoPrestamo").innerHTML += `<option value="${docu.id}">${clientName} — $${money(d.monto)}${observacion}</option>`;
   }
 }
 
@@ -84,10 +135,32 @@ $id("prestamoForm").addEventListener("submit", async (e)=>{
   const observacion = $id("prestamoObs").value.trim();
   if(!clienteId) return alert("Seleccione cliente");
   if(!monto || !cuotas) return alert("Monto y cuotas requeridos");
-  const prestRef = await addDoc(collection(db,"prestamos"), { clienteId, monto, interes, cuotas, banco, observacion, fecha:new Date() });
+
+  // Guardar préstamo con fecha actual
+  const prestRef = await addDoc(collection(db,"prestamos"), { 
+    clienteId, 
+    monto, 
+    interes, 
+    cuotas, 
+    banco, 
+    observacion, 
+    fecha:new Date() 
+  });
+
+  // Crear cuotas con fecha de vencimiento
   for(let i=1;i<=cuotas;i++){
-    await addDoc(collection(db,"cuotas"), { prestamoId: prestRef.id, numero:i, monto: Number((monto/cuotas).toFixed(2)), pagada:false });
+    const fechaV = new Date();
+    fechaV.setMonth(fechaV.getMonth() + i - 1); 
+
+    await addDoc(collection(db,"cuotas"), { 
+      prestamoId: prestRef.id, 
+      numero:i, 
+      monto: Number((monto/cuotas).toFixed(2)), 
+      pagada:false,
+      vencimiento: fechaV 
+    });
   }
+
   $id("prestamoForm").reset();
   await loadPrestamosList();
   await refreshDashboard();
@@ -137,6 +210,7 @@ async function refreshHistorial(){
   const clientsSnap = await getDocs(collection(db,"clientes"));
   const clientsById = {};
   for(const c of clientsSnap.docs) clientsById[c.id] = c.data().nombre;
+  
   for(const p of prestamosSnap.docs){
     const d = p.data();
     const clientName = clientsById[d.clienteId] || d.clienteId;
@@ -160,9 +234,12 @@ async function refreshHistorial(){
     const exp = document.createElement("tr");
     exp.style.display = "none";
     exp.id = "exp_"+p.id;
-    exp.innerHTML = `<td colspan="10"><div id="expbody_${p.id}">—</div></td>`;
+    // ¡AQUÍ LA CORRECCIÓN CLAVE! ASEGURAR LA INTERPOLACIÓN CORRECTA DEL ID
+    exp.innerHTML = `<td colspan="10"><div id="expbody_${p.id}">—</div></td>`; 
     tbody.appendChild(exp);
   }
+  
+  // Re-asignar los event listeners después de que el tbody ha sido actualizado
   document.querySelectorAll(".btn-view").forEach(btn => {
     btn.onclick = async (ev) => {
       const pid = ev.target.dataset.id;
@@ -170,20 +247,29 @@ async function refreshHistorial(){
       const body = document.getElementById("expbody_"+pid);
       if(expRow.style.display === "none"){
         const cuotasSnap = await getDocs(query(collection(db,"cuotas"), where("prestamoId","==", pid)));
+        
+        let cuotasOrdenadas = cuotasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        cuotasOrdenadas.sort((a, b) => (a.numero || 0) - (b.numero || 0));
+        
         let html = `<div class="list-group">`;
-        for(const c of cuotasSnap.docs){
-          const cd = c.data();
-          const estado = cd.pagada ? "Pagada" : (cd.pagado_parcial ? `Parcial (${cd.pagado_parcial})` : "Pendiente");
+        
+        for(const cdata of cuotasOrdenadas){
+          const cd = cdata;
+          const c_id = cdata.id;
+          
+          const estado = cd.pagada ? "Pagada" : (cd.pagado_parcial ? `Parcial (${money(cd.pagado_parcial)})` : "Pendiente");
           const btnTxt = cd.pagada ? 'Desmarcar' : 'Marcar pagada';
           const btnCls = cd.pagada ? 'btn-danger' : 'btn-success';
           html += `<div class="d-flex justify-content-between align-items-center border p-2 mb-1">
             <div>Cuota ${cd.numero} — $${money(cd.monto)} — <small>${estado}</small></div>
-            <div><button class="btn btn-sm ${btnCls} btn-toggle-cuota" data-qid="${c.id}" data-pid="${pid}">${btnTxt}</button></div>
+            <div><button class="btn btn-sm ${btnCls} btn-toggle-cuota" data-qid="${c_id}" data-pid="${pid}">${btnTxt}</button></div>
           </div>`;
         }
         html += `</div>`;
         body.innerHTML = html;
         expRow.style.display = "";
+        
+        // También re-asignar los listeners de las cuotas
         body.querySelectorAll(".btn-toggle-cuota").forEach(bt => {
           bt.onclick = async (e2) => {
             const qid = e2.target.dataset.qid;
@@ -191,6 +277,8 @@ async function refreshHistorial(){
             const isMark = e2.target.textContent.trim() === 'Marcar pagada';
             await updateDoc(cuotaRef, { pagada: isMark });
             await refreshHistorial();
+            await loadPrestamosList(); 
+            await refreshDashboard();
           };
         });
       } else {
@@ -205,8 +293,29 @@ $id("btnRefrescarHistorial").addEventListener("click", refreshHistorial);
 let chartInstance;
 let chartClientes;
 
+async function updateCuotaCounters(){
+  const hoy = new Date();
+  const tresDias = new Date();
+  tresDias.setDate(hoy.getDate()+3);
+
+  let vencidas = 0;
+  let proximas = 0;
+
+  const cuotasSnap = await getDocs(collection(db,"cuotas"));
+  cuotasSnap.forEach(c=>{
+    const d=c.data();
+    if(d.pagada) return;
+    const fechaV = d.vencimiento?.toDate?.() || new Date(d.vencimiento || hoy);
+    if(fechaV < hoy) vencidas++;
+    else if(fechaV >= hoy && fechaV <= tresDias) proximas++;
+  });
+
+  $id("dashCuotasVencidas").textContent = vencidas;
+  $id("dashCuotasPorVencer").textContent = proximas;
+}
+
+
 async function refreshDashboard(){
-  // totales mes actual vs mes anterior
   const now=new Date();
   const currentMonth=now.getMonth();
   const lastMonth=(currentMonth+11)%12;
@@ -235,7 +344,8 @@ async function refreshDashboard(){
   $id("dashPrestamosTrend").textContent=prestamosActual>=prestamosAnterior?"🔼 vs mes anterior":"🔽 vs mes anterior";
   $id("dashAbonosTrend").textContent=abonosActual>=abonosAnterior?"🔼 vs mes anterior":"🔽 vs mes anterior";
 
-  // gráfico mes actual vs anterior
+  await updateCuotaCounters(); 
+
   const ctx=document.getElementById("dashChart").getContext("2d");
   if(chartInstance){chartInstance.destroy();}
   chartInstance=new Chart(ctx,{
@@ -250,10 +360,8 @@ async function refreshDashboard(){
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  // gráfico préstamos por cliente (pie)
 if(chartClientes){ chartClientes.destroy(); }
 
-// armamos arrays
 const presSnap2 = await getDocs(collection(db,"prestamos"));
 const cliSnap2 = await getDocs(collection(db,"clientes"));
 
@@ -265,14 +373,12 @@ presSnap2.forEach(p=>{
   montosPorCliente[d.clienteId]=(montosPorCliente[d.clienteId]||0)+Number(d.monto||0);
 });
 
-// filtramos solo los que tienen monto >0
 const totalPrestamosClientes = Object.values(montosPorCliente).reduce((a,b)=>a+b,0);
 const nombresClientes = [];
 const valoresPrestamos = [];
 
 for(const [cid,monto] of Object.entries(montosPorCliente)){
   if(monto>0){
-    // nombre cliente
     const nombre = cliSnap2.docs.find(d=>d.id===cid)?.data().nombre || cid;
     const porcentaje = ((monto/totalPrestamosClientes)*100).toFixed(1);
     nombresClientes.push(`${nombre} – $${money(monto)} (${porcentaje}%)`);
@@ -282,7 +388,7 @@ for(const [cid,monto] of Object.entries(montosPorCliente)){
 
 const ctxClientes=document.getElementById("dashChartClientes").getContext("2d");
 chartClientes=new Chart(ctxClientes,{
-  type:'doughnut',  // también puedes usar 'pie'
+  type:'doughnut',  
   data:{
     labels:nombresClientes,
     datasets:[{
@@ -302,10 +408,10 @@ chartClientes=new Chart(ctxClientes,{
 });
 }
 
-// redibujar dashboard al entrar en pestaña
 document.querySelector('button[data-bs-target="#tab-dashboard"]').addEventListener('shown.bs.tab', () => {
   refreshDashboard();
 });
+
 
 // ---------- INICIAL ----------
 await loadClients();

@@ -11,7 +11,7 @@
 </head>
 <body class="bg-light">
 <div class="container py-4">
-  <h2 class="mb-4">📂 Gestión de Préstamos — V7</h2>
+  <h2 class="mb-4">📂 Gestión de Préstamos — V8</h2>
 
   <!-- Nav -->
   <!-- Nav -->
@@ -53,6 +53,24 @@
         </div>
       </div>
     </div>
+
+    <div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card p-3 text-center">
+      <h5>Cuotas vencidas</h5>
+      <h2 class="text-danger" id="dashCuotasVencidas">0</h2>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3 text-center">
+      <h5>Cuotas próximas a vencer</h5>
+      <h2 class="text-warning" id="dashCuotasPorVencer">0</h2>
+    </div>
+  </div>
+</div>
+
+
+
     <div class="card p-3">
       <h5>Comparación</h5>
       <canvas id="dashChart" style="width:100%;height:250px;"></canvas>
