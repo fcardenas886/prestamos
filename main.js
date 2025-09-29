@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+// NUEVAS IMPORTACIONES: Solo necesitamos verificar sesión y cerrar sesión
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 
-// Ya no importamos Toast como módulo, sino que usamos el objeto global 'bootstrap'
 
 const firebaseConfig = {
   apiKey: "AIzaSyBDayetHZ2eoNjGnqcsqbZUqjQeS7WUiS0",
@@ -14,20 +15,17 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app); 
 
-// Mapas globales para evitar múltiples consultas a la DB
 let clientsById = {};
 
 function $id(id){ return document.getElementById(id); }
 function money(n){ return Number(n||0).toFixed(2); }
 
-// FUNCIÓN DE TOAST: Usa el objeto global 'bootstrap'
 function showToast(message, type = 'success') {
   const container = document.querySelector('.toast-container');
   if (!container || typeof bootstrap === 'undefined' || !bootstrap.Toast) {
-      // Fallback si no está el contenedor o Bootstrap JS no está cargado
-      console.error("Bootstrap Toast not found. Using alert fallback.");
-      alert(`${type.toUpperCase()}: ${message}`); 
+      console.error("Bootstrap Toast not found.");
       return;
   }
   
@@ -55,19 +53,54 @@ function showToast(message, type = 'success') {
 }
 
 
+// ######################################################
+// ############# LÓGICA DE AUTENTICACIÓN ################
+// ######################################################
+
+$id("btnLogout").addEventListener("click", async () => {
+  await signOut(auth);
+  showToast("Sesión cerrada correctamente.", 'success');
+  // Redirigir al usuario a la página de login
+  window.location.href = "login.html"; 
+});
+
+
+// Manejador del estado de la autenticación
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // Usuario logeado: Iniciar la aplicación
+    $id('userEmailDisplay').textContent = user.email;
+
+    // Ejecutar la carga inicial de datos solo si no se ha hecho
+    // Esto evita que el código se ejecute múltiples veces si se reactiva la pestaña
+    if ($id("clientesList").innerHTML === "") { 
+        initialLoad(); 
+    }
+
+  } else {
+    // Usuario NO logeado: Redirigir a login.html
+    window.location.href = "login.html";
+  }
+});
+
+// ######################################################
+// ################# FIN AUTENTICACIÓN ##################
+// ######################################################
+
+
 // ---------- CARGAS BÁSICAS ----------
+
 async function loadClients(){
   const snap = await getDocs(collection(db,"clientes"));
   $id("clientesList").innerHTML = "";
   $id("prestamoCliente").innerHTML = "<option value=''>Seleccione cliente</option>";
   $id("filtroClienteAbono").innerHTML = "<option value=''>Filtrar por cliente (opcional)</option>";
   
-  // Limpiar y rellenar el mapa global
   clientsById = {}; 
 
   for(const docu of snap.docs){
     const d = docu.data();
-    clientsById[docu.id] = d; // Guardar datos del cliente
+    clientsById[docu.id] = d; 
     
     $id("clientesList").innerHTML += `<li class="list-group-item"><strong>${d.nombre}</strong> — ${d.telefono||''} <small class="text-muted">(id: ${docu.id})</small></li>`;
     $id("prestamoCliente").innerHTML += `<option value="${docu.id}">${d.nombre}</option>`;
@@ -79,7 +112,6 @@ async function loadPrestamosList(){
   const snap = await getDocs(collection(db,"prestamos"));
   $id("prestamosList").innerHTML = "";
 
-  // Traemos las cuotas para saber vencidas/próximas
   const cuotasSnap = await getDocs(collection(db,"cuotas"));
   const cuotasByPrestamo = {};
   for(const c of cuotasSnap.docs){
@@ -91,7 +123,6 @@ async function loadPrestamosList(){
     const p = pdoc.data();
     const cuotas = cuotasByPrestamo[pdoc.id] || [];
     
-    // calcular vencidas y próximas
     let vencidas = 0, proximas = 0;
     const hoy = new Date();
     for(const c of cuotas){
@@ -101,17 +132,16 @@ async function loadPrestamosList(){
 
       if(!c.pagada && fechaCuota < hoy){ 
         vencidas++; 
-      } else if(!c.pagada && diffDias <= 7 && diffDias >= 0){ // próximas en 7 días
+      } else if(!c.pagada && diffDias <= 7 && diffDias >= 0){ 
         proximas++; 
       }
     }
 
-    // estilo según estado
     let borderClass = '';
     if(vencidas>0) borderClass='border-start border-4 border-danger';
     else if(proximas>0) borderClass='border-start border-4 border-warning';
     
-    const clientName = clientsById[p.clienteId]?.nombre || p.clienteId; // USAR NOMBRE
+    const clientName = clientsById[p.clienteId]?.nombre || p.clienteId; 
 
     let estadoText='';
     if(vencidas>0) estadoText=`<small class="text-danger">${vencidas} cuota(s) vencida(s)</small>`;
@@ -139,7 +169,7 @@ async function populatePrestamosSelect(clienteFiltro=''){
   
   for(const docu of snap.docs){
     const d = docu.data();
-    const clientName = clientsById[d.clienteId]?.nombre || d.clienteId; // USAR NOMBRE
+    const clientName = clientsById[d.clienteId]?.nombre || d.clienteId; 
     const observacion = d.observacion ? ` | Obs: ${d.observacion}` : '';
     
     $id("abonoPrestamo").innerHTML += `<option value="${docu.id}">${clientName} — $${money(d.monto)}${observacion}</option>`;
@@ -170,7 +200,6 @@ $id("clienteForm").addEventListener("submit", async (e)=>{
   await refreshDashboard();
 });
 
-// LÓGICA DE PRÉSTAMO CON INTERÉS Y FECHA ROBUSTA
 $id("prestamoForm").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const clienteId = $id("prestamoCliente").value;
@@ -183,33 +212,26 @@ $id("prestamoForm").addEventListener("submit", async (e)=>{
   if(!clienteId) return showToast("Seleccione cliente", 'danger');
   if(!monto || !cuotas) return showToast("Monto y cuotas requeridos", 'danger');
 
-  // 1. Calcular el monto total con interés y el valor de cada cuota
   const montoConInteres = monto * (1 + (interes / 100));
   const montoCuota = Number((montoConInteres / cuotas).toFixed(2));
   const fechaBase = new Date();
 
-  // Guardar préstamo con fecha actual
   const prestRef = await addDoc(collection(db,"prestamos"), { 
     clienteId, 
     monto, 
     interes, 
     cuotas, 
-    montoTotalCuotas: montoConInteres, // Nuevo campo para el total adeudado
+    montoTotalCuotas: montoConInteres, 
     banco, 
     observacion, 
     fecha:new Date() 
   });
 
-  // 2. Crear cuotas con fecha de vencimiento al mes siguiente (FECHA ROBUSTA)
   for(let i=1;i<=cuotas;i++){
     const fechaV = new Date(fechaBase);
-    
-    // Avanzar el mes 'i' veces
     const targetMonth = fechaBase.getMonth() + i;
     fechaV.setMonth(targetMonth);
     
-    // Si la fecha resultante no tiene el mismo día (fue desbordada por un mes más corto),
-    // la ajustamos al último día del mes deseado.
     if (fechaV.getMonth() !== targetMonth % 12) {
         fechaV.setDate(0); 
     }
@@ -230,7 +252,6 @@ $id("prestamoForm").addEventListener("submit", async (e)=>{
   await refreshDashboard();
 });
 
-// LÓGICA DE ABONO CON ANTISOBREPAGO Y PAGO PARCIAL
 $id("abonoForm").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const prestamoId = $id("abonoPrestamo").value;
@@ -238,7 +259,6 @@ $id("abonoForm").addEventListener("submit", async (e)=>{
   
   if(!prestamoId || !montoAbono) return showToast("Seleccione préstamo e ingrese monto", 'danger');
   
-  // 1. OBTENER SALDO PENDIENTE (TOTAL DE CUOTAS - TOTAL ABONADO)
   const cuotasSnap = await getDocs(query(collection(db,"cuotas"), where("prestamoId","==", prestamoId)));
   const abonosSnap = await getDocs(query(collection(db,"abonos"), where("prestamoId","==", prestamoId)));
   
@@ -249,7 +269,6 @@ $id("abonoForm").addEventListener("submit", async (e)=>{
   
   if(saldoPendiente <= 0) return showToast("¡Este préstamo ya está saldado!", 'warning');
   
-  // 2. RECORTAR ABONO SI ES MAYOR AL SALDO PENDIENTE
   if(montoAbono > saldoPendiente){
       showToast(`El abono ($${money(montoAbono)}) excede el saldo pendiente ($${money(saldoPendiente)}). Solo se aplicarán $${money(saldoPendiente)}.`, 'warning');
       montoAbono = saldoPendiente;
@@ -257,13 +276,10 @@ $id("abonoForm").addEventListener("submit", async (e)=>{
   
   if(montoAbono <= 0) return;
   
-  // 3. REGISTRAR ABONO (Usar el monto recortado si aplica)
   await addDoc(collection(db,"abonos"), { prestamoId, monto: montoAbono, fecha: new Date() }); 
   
-  // 4. APLICAR EL MONTO A LAS CUOTAS PENDIENTES EN ORDEN
   let restante = montoAbono; 
   
-  // Obtener cuotas ordenadas por número
   let cuotasOrdenadas = cuotasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   cuotasOrdenadas.sort((a, b) => (a.numero || 0) - (b.numero || 0));
   
@@ -279,11 +295,9 @@ $id("abonoForm").addEventListener("submit", async (e)=>{
       if(cdata.pagada || montoFaltante <= 0) continue;
       
       if(restante >= montoFaltante){
-          // El abono cubre completamente lo que falta de esta cuota
           await updateDoc(cuotaRef, { pagada: true, pagado_parcial: 0 }); 
           restante -= montoFaltante;
       } else {
-          // El abono cubre parcialmente
           await updateDoc(cuotaRef, { pagado_parcial: pagadoParcial + restante });
           restante = 0;
       }
@@ -308,7 +322,6 @@ async function refreshHistorial(){
   const tbody = $id("historialTable").querySelector("tbody");
   tbody.innerHTML = "";
   
-  // Obtener todos los abonos y agrupar por préstamo
   const abonosSnap = await getDocs(collection(db,"abonos"));
   const abonosByPrest = {};
   for(const a of abonosSnap.docs){ 
@@ -316,7 +329,6 @@ async function refreshHistorial(){
     abonosByPrest[d.prestamoId] = (abonosByPrest[d.prestamoId]||0) + (Number(d.monto)||0); 
   }
   
-  // Obtener el total adeudado (Monto Principal + Interés) de las cuotas
   const cuotasSnapTotal = await getDocs(collection(db,"cuotas"));
   const totalCuotasByPrest = {};
   for(const c of cuotasSnapTotal.docs){ 
@@ -326,14 +338,13 @@ async function refreshHistorial(){
   
   for(const p of prestamosSnap.docs){
     const d = p.data();
-    const clientName = clientsById[d.clienteId]?.nombre || d.clienteId; // USAR NOMBRE
+    const clientName = clientsById[d.clienteId]?.nombre || d.clienteId; 
     
     if(filterText && !clientName.toLowerCase().includes(filterText) && !d.clienteId.toLowerCase().includes(filterText)) continue;
     
-    // USAR EL MONTO TOTAL DE CUOTAS PARA EL CÁLCULO DE SALDO
     const totalCuotasAdeudado = totalCuotasByPrest[p.id] || Number(d.monto||0); 
     const totalAb = abonosByPrest[p.id] || 0;
-    const saldo = Number(totalCuotasAdeudado - totalAb).toFixed(2); // Saldo basado en cuotas totales
+    const saldo = Number(totalCuotasAdeudado - totalAb).toFixed(2); 
     
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -356,7 +367,6 @@ async function refreshHistorial(){
     tbody.appendChild(exp);
   }
   
-  // Re-asignar los event listeners
   document.querySelectorAll(".btn-view").forEach(btn => {
     btn.onclick = async (ev) => {
       const pid = ev.target.dataset.id;
@@ -398,14 +408,12 @@ async function refreshHistorial(){
         body.innerHTML = html;
         expRow.style.display = "";
         
-        // Re-asignar los listeners de las cuotas
         body.querySelectorAll(".btn-toggle-cuota").forEach(bt => {
           bt.onclick = async (e2) => {
             const qid = e2.target.dataset.qid;
             const cuotaRef = doc(db,"cuotas", qid);
             const isMark = e2.target.textContent.trim() === 'Marcar pagada';
             
-            // Si se marca como pagada, limpiar pagado_parcial. Si se desmarca, resetear ambos.
             const updateData = { pagada: isMark, pagado_parcial: 0 };
             
             await updateDoc(cuotaRef, updateData);
@@ -499,7 +507,6 @@ if(chartClientes){ chartClientes.destroy(); }
 const presSnap2 = await getDocs(collection(db,"prestamos"));
 
 const montosPorCliente = {};
-// Asegurar que todos los clientes estén en el mapa, incluso si no tienen préstamos
 for(const cid in clientsById) montosPorCliente[cid] = 0; 
 
 presSnap2.forEach(p=>{
@@ -513,7 +520,7 @@ const valoresPrestamos = [];
 
 for(const [cid,monto] of Object.entries(montosPorCliente)){
   if(monto>0){
-    const nombre = clientsById[cid]?.nombre || cid; // USAR NOMBRE
+    const nombre = clientsById[cid]?.nombre || cid; 
     const porcentaje = ((monto/totalPrestamosClientes)*100).toFixed(1);
     nombresClientes.push(`${nombre} – $${money(monto)} (${porcentaje}%)`);
     valoresPrestamos.push(monto);
@@ -546,11 +553,12 @@ document.querySelector('button[data-bs-target="#tab-dashboard"]').addEventListen
   refreshDashboard();
 });
 
-
-// ---------- INICIAL ----------
-await loadClients();
-await loadPrestamosList();
-await populatePrestamosSelect();
-await loadAbonos();
-await refreshHistorial();
-await refreshDashboard();
+// Función de carga inicial para ser llamada SOLO después del login
+async function initialLoad(){
+    await loadClients();
+    await loadPrestamosList();
+    await populatePrestamosSelect();
+    await loadAbonos();
+    await refreshHistorial();
+    await refreshDashboard();
+}
