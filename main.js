@@ -655,6 +655,109 @@ function handleAbonoClick(abonoId, prestamoId){
 }
 
 // Modal dinámico (Bootstrap) con botones Ver Cliente / Ver Préstamo / Cerrar
+// function showAbonoDetailModal(data){
+//     const { abono = {}, prestamo = {}, cliente = {}, cuotaAfectada, cuotas = [], saldo } = data;
+//     let modalEl = document.getElementById('abonoDetailModal');
+//     if (!modalEl) {
+//         modalEl = document.createElement('div');
+//         modalEl.id = 'abonoDetailModal';
+//         modalEl.className = 'modal fade';
+//         modalEl.tabIndex = -1;
+//         modalEl.innerHTML = `
+//         <div class="modal-dialog modal-lg">
+//           <div class="modal-content">
+//             <div class="modal-header bg-light">
+//               <h5 class="modal-title">Detalle del Abono</h5>
+//               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+//             </div>
+//             <div class="modal-body" id="abonoDetailBody">Cargando...</div>
+//             <div class="modal-footer">
+//               <button id="btnVerClienteDesdeAbono" type="button" class="btn btn-outline-primary">👤 Ver Cliente</button>
+//               <button id="btnVerPrestamoDesdeAbono" type="button" class="btn btn-outline-secondary">🧾 Ver Préstamo</button>
+//               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+//             </div>
+//           </div>
+//         </div>`;
+//         document.body.appendChild(modalEl);
+//     }
+
+//     const body = modalEl.querySelector('#abonoDetailBody');
+//     const fecha = abono.fecha?.toDate?.() || new Date(abono.fecha || Date.now());
+//     const abonoMonto = money(abono.monto || 0);
+
+//     let cuotasHtml = '';
+//     if (cuotas.length === 0) {
+//         cuotasHtml = '<p class="text-muted">No hay cuotas registradas para este préstamo.</p>';
+//     } else {
+//         cuotasHtml = '<div class="list-group mb-2">';
+//         for (const c of cuotas) {
+//             const venc = c.vencimiento?.toDate?.() || (c.vencimiento ? new Date(c.vencimiento) : null);
+//             const vencStr = venc ? venc.toLocaleDateString() : 'N/A';
+//             const estado = c.pagada ? 'Pagada' : (Number(c.pagado_parcial) > 0 ? `Parcial (${money(c.pagado_parcial)})` : 'Pendiente');
+//             const highlight = (cuotaAfectada && cuotaAfectada.id === c.id) ? 'border-primary' : '';
+//             cuotasHtml += `<div class="list-group-item d-flex justify-content-between align-items-center ${highlight}">
+//                 <div>Cuota ${c.numero} — <strong>${money(c.monto)}</strong><br><small>Venc.: ${vencStr}</small></div>
+//                 <div><small class="text-muted">${estado}</small></div>
+//             </div>`;
+//         }
+//         cuotasHtml += '</div>';
+//     }
+
+//     const banco = prestamo?.banco || 'N/A';
+//     const observacion = prestamo?.observacion || '';
+
+//     body.innerHTML = `
+//         <div>
+//             <p><strong>Monto abonado:</strong> ${abonoMonto}</p>
+//             <p><strong>Fecha:</strong> ${fecha.toLocaleString()}</p>
+//             <p><strong>Préstamo ID:</strong> ${prestamo?.id || abono.prestamoId || 'N/A'}</p>
+//             <p><strong>Cliente:</strong> ${cliente?.nombre || 'N/A'}</p>
+//             <p><strong>Banco:</strong> ${banco}</p>
+//             <p><strong>Observación:</strong> ${observacion}</p>
+//             <p><strong>Cuota probable afectada:</strong> ${cuotaAfectada ? cuotaAfectada.numero : 'N/A'}</p>
+//             <p><strong>Saldo restante:</strong> ${money(saldo)}</p>
+//             <hr>
+//             <h6>Detalle de cuotas</h6>
+//             ${cuotasHtml}
+//         </div>
+//     `;
+
+//     const bsModal = new bootstrap.Modal(modalEl);
+//     bsModal.show();
+
+//     // Botones funcionales
+//     modalEl.querySelector('#btnVerClienteDesdeAbono').onclick = () => {
+//         if (cliente && cliente.id) {
+//             bsModal.hide();
+//             showClientProfileModal(cliente.id);
+//         } else if (prestamo && prestamo.clienteId) {
+//             bsModal.hide();
+//             showClientProfileModal(prestamo.clienteId);
+//         } else showToast("No se encontró cliente.", "warning");
+//     };
+
+//     modalEl.querySelector('#btnVerPrestamoDesdeAbono').onclick = () => {
+//         if (prestamo && prestamo.id) {
+//             bsModal.hide();
+//             // Cambiar a tab de préstamos y seleccionar (resaltar) el préstamo
+//             const bsTab = new bootstrap.Tab($id('tabs').querySelector(`[data-bs-target="#tab-prestamos"]`));
+//             bsTab.show();
+//             // Opcional: resaltar el préstamo en la lista (temporal)
+//             setTimeout(()=>{
+//                 const selector = `li.list-group-item:contains("${prestamo.id}")`;
+//                 // fallback: scroll into view searching by text
+//                 const items = Array.from($id('prestamosList').children || []);
+//                 const item = items.find(it => it.textContent.includes(prestamo.id));
+//                 if (item) { item.classList.add('bg-warning'); setTimeout(()=>item.classList.remove('bg-warning'), 2500); item.scrollIntoView({behavior:'smooth', block:'center'}); }
+//             }, 200);
+//         } else showToast("No se encontró préstamo.", "warning");
+//     };
+// }
+
+// ... (código anterior)
+
+// Modal dinámico (Bootstrap) con botones Ver Cliente / Ver Préstamo / Cerrar
+// Modal dinámico (Bootstrap) con botones Ver Cliente / Ver Préstamo / Cerrar
 function showAbonoDetailModal(data){
     const { abono = {}, prestamo = {}, cliente = {}, cuotaAfectada, cuotas = [], saldo } = data;
     let modalEl = document.getElementById('abonoDetailModal');
@@ -663,12 +766,13 @@ function showAbonoDetailModal(data){
         modalEl.id = 'abonoDetailModal';
         modalEl.className = 'modal fade';
         modalEl.tabIndex = -1;
+        // **ACTUALIZADO: Encabezado con bg-primary y botones con btn-close-white para coincidir con el modal de cliente**
         modalEl.innerHTML = `
         <div class="modal-dialog modal-lg">
           <div class="modal-content">
-            <div class="modal-header bg-light">
+            <div class="modal-header bg-primary text-white">
               <h5 class="modal-title">Detalle del Abono</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="abonoDetailBody">Cargando...</div>
             <div class="modal-footer">
@@ -680,48 +784,81 @@ function showAbonoDetailModal(data){
         </div>`;
         document.body.appendChild(modalEl);
     }
+    // NOTA: Si el modal ya existe, nos aseguramos de que el header tenga la clase correcta
+    const modalHeader = modalEl.querySelector('.modal-header');
+    if (!modalHeader.classList.contains('bg-primary')) {
+        modalHeader.className = 'modal-header bg-primary text-white';
+        modalEl.querySelector('.btn-close').classList.add('btn-close-white');
+    }
 
     const body = modalEl.querySelector('#abonoDetailBody');
     const fecha = abono.fecha?.toDate?.() || new Date(abono.fecha || Date.now());
     const abonoMonto = money(abono.monto || 0);
 
+    // Renderizado de cuotas (usando list-group-flush para un mejor look)
     let cuotasHtml = '';
     if (cuotas.length === 0) {
-        cuotasHtml = '<p class="text-muted">No hay cuotas registradas para este préstamo.</p>';
+        cuotasHtml = '<p class="text-muted text-center">No hay cuotas registradas para este préstamo.</p>';
     } else {
-        cuotasHtml = '<div class="list-group mb-2">';
+        cuotasHtml = '<div class="list-group list-group-flush">';
         for (const c of cuotas) {
             const venc = c.vencimiento?.toDate?.() || (c.vencimiento ? new Date(c.vencimiento) : null);
             const vencStr = venc ? venc.toLocaleDateString() : 'N/A';
             const estado = c.pagada ? 'Pagada' : (Number(c.pagado_parcial) > 0 ? `Parcial (${money(c.pagado_parcial)})` : 'Pendiente');
-            const highlight = (cuotaAfectada && cuotaAfectada.id === c.id) ? 'border-primary' : '';
+            // Resaltamos la cuota que fue impactada por este abono
+            const highlight = (cuotaAfectada && cuotaAfectada.id === c.id) ? 'border-start border-3 border-danger' : ''; 
             cuotasHtml += `<div class="list-group-item d-flex justify-content-between align-items-center ${highlight}">
-                <div>Cuota ${c.numero} — <strong>${money(c.monto)}</strong><br><small>Venc.: ${vencStr}</small></div>
-                <div><small class="text-muted">${estado}</small></div>
+                <div>
+                    <strong>Cuota ${c.numero}</strong> — ${money(c.monto)}<br>
+                    <small>Venc.: ${vencStr}</small>
+                </div>
+                <div class="text-end">
+                    <small class="${c.pagada ? 'text-success' : 'text-danger'}">${estado}</small>
+                </div>
             </div>`;
         }
         cuotasHtml += '</div>';
     }
 
     const banco = prestamo?.banco || 'N/A';
-    const observacion = prestamo?.observacion || '';
+    const observacion = prestamo?.observacion || 'Sin observación';
+    const clienteNombre = cliente?.nombre || 'N/A';
+    const prestamoId = prestamo?.id || abono.prestamoId || 'N/A';
 
+    // **ACTUALIZADO: Cuerpo del modal con estructura de cliente (Resumen + Secciones)**
     body.innerHTML = `
-        <div>
-            <p><strong>Monto abonado:</strong> ${abonoMonto}</p>
-            <p><strong>Fecha:</strong> ${fecha.toLocaleString()}</p>
-            <p><strong>Préstamo ID:</strong> ${prestamo?.id || abono.prestamoId || 'N/A'}</p>
-            <p><strong>Cliente:</strong> ${cliente?.nombre || 'N/A'}</p>
-            <p><strong>Banco:</strong> ${banco}</p>
-            <p><strong>Observación:</strong> ${observacion}</p>
-            <p><strong>Cuota probable afectada:</strong> ${cuotaAfectada ? cuotaAfectada.numero : 'N/A'}</p>
-            <p><strong>Saldo restante:</strong> ${money(saldo)}</p>
-            <hr>
-            <h6>Detalle de cuotas</h6>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6>Datos del Abono</h6>
+                <p class="mb-1"><strong>Monto abonado:</strong> <span class="fs-5 text-success">${abonoMonto}</span></p>
+                <p class="mb-1"><strong>Fecha:</strong> ${fecha.toLocaleString()}</p>
+                <p class="mb-1"><strong>Cliente:</strong> ${clienteNombre}</p>
+            </div>
+            <div class="col-md-6 text-end">
+                <h6>Resumen Préstamo</h6>
+                <p class="mb-1"><strong>Préstamo ID:</strong> ${prestamoId}</p>
+                <p class="mb-1"><strong>Saldo Pendiente:</strong> <span class="fs-4 text-danger">${money(saldo)}</span></p>
+                <p class="mb-1"><strong>Cuota Impactada:</strong> ${cuotaAfectada ? cuotaAfectada.numero : 'N/A'}</p>
+            </div>
+        </div>
+        
+        <h6 class="border-bottom pb-2">Información Adicional del Préstamo</h6>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <p class="mb-1"><strong>Banco:</strong> ${banco}</p>
+            </div>
+            <div class="col-md-6">
+                <p class="mb-1"><strong>Observación:</strong> ${observacion}</p>
+            </div>
+        </div>
+
+        <h6 class="border-bottom pb-2">Detalle de Cuotas del Préstamo (La marcada en rojo fue la impactada)</h6>
+        <div style="max-height: 300px; overflow-y: auto;">
             ${cuotasHtml}
         </div>
     `;
 
+    // Lógica para mostrar el modal (Esto es crítico)
     const bsModal = new bootstrap.Modal(modalEl);
     bsModal.show();
 
@@ -744,8 +881,6 @@ function showAbonoDetailModal(data){
             bsTab.show();
             // Opcional: resaltar el préstamo en la lista (temporal)
             setTimeout(()=>{
-                const selector = `li.list-group-item:contains("${prestamo.id}")`;
-                // fallback: scroll into view searching by text
                 const items = Array.from($id('prestamosList').children || []);
                 const item = items.find(it => it.textContent.includes(prestamo.id));
                 if (item) { item.classList.add('bg-warning'); setTimeout(()=>item.classList.remove('bg-warning'), 2500); item.scrollIntoView({behavior:'smooth', block:'center'}); }
