@@ -3,21 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Prestamos - V6</title>
+<title>Prestamos - V12 (Final UX)</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="style.css" rel="stylesheet">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
 </head>
 <body class="bg-light">
-<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3">
-  </div>
 <div class="container py-4">
-  <h2 class="mb-4">📂 Gestión de Préstamos — V9</h2>
+  <h2 class="mb-4">📂 Gestión de Préstamos — V12 (Final UX)</h2>
 
-  <!-- Nav -->
-  <!-- Nav -->
-<ul class="nav nav-tabs" id="tabs">
+  <ul class="nav nav-tabs" id="tabs">
   <li class="nav-item">
     <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dashboard">Dashboard</button>
   </li>
@@ -33,135 +30,185 @@
   <li class="nav-item">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-historial">Historial</button>
   </li>
+  <li class="nav-item ms-auto">
+    <span class="nav-link text-muted">Usuario: <b id="userEmailDisplay"></b></span>
+  </li>
+  <li class="nav-item">
+    <button id="btnLogout" class="nav-link text-danger">Salir</button>
+  </li>
 </ul>
 
-<div class="tab-content mt-3">
+  <div class="tab-content pt-4">
 
-  <!-- DASHBOARD -->
-  <div class="tab-pane fade show active" id="tab-dashboard">
-    <div class="row g-3 mb-3">
-      <div class="col-md-6">
-        <div class="card p-3 text-center">
-          <h5>Total Préstamos</h5>
-          <h2 id="dashTotalPrestamos">0</h2>
-          <small id="dashPrestamosTrend"></small>
+    <div class="tab-pane fade show active" id="tab-dashboard">
+      <div class="row">
+        <div class="col-lg-4 mb-3">
+          <div class="card p-3 text-white bg-danger">
+            <h5>Cuotas Vencidas</h5>
+            <h1 id="dashCuotasVencidas">0</h1>
+          </div>
+        </div>
+        <div class="col-lg-4 mb-3">
+          <div class="card p-3 text-white bg-warning">
+            <h5>Próximas a Vencer (3 días)</h5>
+            <h1 id="dashCuotasPorVencer">0</h1>
+          </div>
+        </div>
+        <div class="col-lg-4 mb-3">
+          <div class="card p-3 text-white bg-success">
+            <h5>Total Abonado</h5>
+            <h1 id="dashTotalAbonos">0</h1>
+            <small id="dashAbonosTrend">N/A (Total Histórico)</small>
+          </div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="card p-3 text-center">
-          <h5>Total Abonos</h5>
-          <h2 id="dashTotalAbonos">0</h2>
-          <small id="dashAbonosTrend"></small>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <div class="card p-3">
+            <h5>Préstamos (Monto total del mes)</h5>
+            <h1 id="dashTotalPrestamos">0</h1>
+            <small id="dashPrestamosTrend">N/A</small>
+            <canvas id="dashChart"></canvas>
+          </div>
+        </div>
+        <div class="col-md-6 mb-3">
+          <div class="card p-3">
+            <h5>Distribución de Préstamos por Cliente</h5>
+            <canvas id="dashChartClientes"></canvas>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="row g-3 mb-3">
-  <div class="col-md-6">
-    <div class="card p-3 text-center">
-      <h5>Cuotas vencidas</h5>
-      <h2 class="text-danger" id="dashCuotasVencidas">0</h2>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card p-3 text-center">
-      <h5>Cuotas próximas a vencer</h5>
-      <h2 class="text-warning" id="dashCuotasPorVencer">0</h2>
-    </div>
-  </div>
-</div>
-
-
-
-    <div class="card p-3">
-      <h5>Comparación</h5>
-      <canvas id="dashChart" style="width:100%;height:250px;"></canvas>
-
-      <div class="card p-3 mt-3">
-  <h5>Préstamos por cliente</h5>
-  <canvas id="dashChartClientes" style="width:100%;max-height:250px;"></canvas>
-</div>
-
-    </div>
-  </div>
-
-    <!-- CLIENTES -->
     <div class="tab-pane fade" id="tab-clientes">
-      <div class="card p-3 mb-3">
-        <h5>Registrar cliente</h5>
-        <form id="clienteForm" class="row g-2">
-          <div class="col-md-5"><input id="clienteNombre" class="form-control" placeholder="Nombre" required></div>
-          <div class="col-md-4"><input id="clienteTelefono" class="form-control" placeholder="Teléfono"></div>
-          <div class="col-md-3"><button class="btn btn-primary">Agregar</button></div>
-        </form>
-      </div>
-
-      <div class="card p-3">
-        <h5>Lista de clientes</h5>
-        <ul id="clientesList" class="list-group"></ul>
+      <div class="row">
+        <div class="col-md-5 mb-3">
+          <div class="card p-3">
+            <h5>Registrar Nuevo Cliente</h5>
+            <form id="clienteForm">
+              <div class="mb-3">
+                <label class="form-label">Nombre *</label>
+                <input id="clienteNombre" class="form-control" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Teléfono</label>
+                <input id="clienteTelefono" class="form-control" type="tel">
+              </div>
+              <button class="btn btn-primary w-100">Registrar Cliente</button>
+            </form>
+          </div>
+        </div>
+        <div class="col-md-7 mb-3">
+          <div class="card p-3">
+            <h5>Lista de Clientes (Haz clic para ver perfil)</h5>
+            <ul id="clientesList" class="list-group">
+                </ul>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- PRESTAMOS -->
     <div class="tab-pane fade" id="tab-prestamos">
-      <div class="card p-3 mb-3">
-        <h5>Registrar préstamo</h5>
-        <form id="prestamoForm" class="row g-2">
-          <div class="col-md-4">
-            <select id="prestamoCliente" class="form-select" required><option value=''>Cargando clientes...</option></select>
+      <div class="row">
+        <div class="col-md-5 mb-3">
+          <div class="card p-3">
+            <h5>Registrar Nuevo Préstamo</h5>
+            <form id="prestamoForm">
+              <div class="mb-3">
+                <label class="form-label">Cliente *</label>
+                <select id="prestamoCliente" class="form-select" required>
+                  <option value="">Seleccione cliente</option>
+                </select>
+              </div>
+              <div class="row">
+                <div class="col-6 mb-3">
+                  <label class="form-label">Monto ($) *</label>
+                  <input id="prestamoMonto" class="form-control" type="number" step="0.01" required>
+                </div>
+                <div class="col-6 mb-3">
+                  <label class="form-label">Interés (%)</label>
+                  <input id="prestamoInteres" class="form-control" type="number" step="0.01" value="0">
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Cuotas *</label>
+                <input id="prestamoCuotas" class="form-control" type="number" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Banco</label>
+                <input id="prestamoBanco" class="form-control">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Observación</label>
+                <input id="prestamoObs" class="form-control">
+              </div>
+              <button class="btn btn-success w-100">Registrar Préstamo</button>
+            </form>
           </div>
-          <div class="col-md-2"><input id="prestamoMonto" class="form-control" type="number" step="0.01" placeholder="Monto" required></div>
-          <div class="col-md-2">
-            <div class="input-group">
-              <input id="prestamoInteres" class="form-control" type="number" step="0.01" value="0" placeholder="Interés" aria-label="Interés">
-              <span class="input-group-text">%</span>
-            </div>
-            <small class="text-muted" style="margin-left:2px;">Porcentaje de interés</small>
+        </div>
+        <div class="col-md-7 mb-3">
+          <div class="card p-3 mb-3">
+            <h5>Lista de Préstamos Activos</h5>
+            <select id="filtroEstadoPrestamo" class="form-select mb-3" onchange="loadPrestamosList()">
+              <option value="todos">Mostrar todos</option>
+              <option value="vencidos">Solo Vencidos</option>
+              <option value="proximos">Próximos a Vencer (7 días)</option>
+              <option value="saldados">Saldados/Pagados</option>
+            </select>
+            <ul id="prestamosList" class="list-group"></ul>
           </div>
-          <div class="col-md-2"><input id="prestamoCuotas" class="form-control" type="number" placeholder="N° Cuotas" required></div>
-          <div class="col-md-2"><input id="prestamoBanco" class="form-control" placeholder="Banco (opcional)"></div>
-          <div class="col-12"><input id="prestamoObs" class="form-control" placeholder="Observación (opcional)"></div>
-          <div class="col-12 text-end"><button class="btn btn-success">Registrar préstamo</button></div>
-        </form>
-      </div>
-
-      <div class="card p-3">
-        <h5>Préstamos existentes</h5>
-        <ul id="prestamosList" class="list-group"></ul>
+        </div>
       </div>
     </div>
 
-    <!-- ABONOS -->
     <div class="tab-pane fade" id="tab-abonos">
-      <div class="card p-3 mb-3">
-        <h5>Registrar abono</h5>
-        <form id="abonoForm" class="row g-2">
-          <div class="col-md-4">
-            <select id="filtroClienteAbono" class="form-select"><option value=''>Filtrar por cliente (opcional)</option></select>
+      <div class="row">
+        <div class="col-md-5 mb-3">
+          <div class="card p-3">
+            <h5>Registrar Abono</h5>
+            <form id="abonoForm">
+              <div class="mb-3">
+                <label class="form-label">Filtrar por Cliente (opcional)</label>
+                <select id="filtroClienteAbono" class="form-select">
+                  <option value="">Filtrar por cliente (opcional)</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Préstamo a Abonar (Muestra Saldo Pendiente)</label>
+                <select id="abonoPrestamo" class="form-select" required>
+                  <option value="">Seleccione préstamo</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Monto a Abonar ($) *</label>
+                <input id="abonoMonto" class="form-control" type="number" step="0.01" required>
+              </div>
+              <div class="col-12"><button class="btn btn-warning w-100">Abonar</button></div>
+            </form>
           </div>
-          <div class="col-md-5">
-            <select id="abonoPrestamo" class="form-select" required><option value=''>Seleccione préstamo</option></select>
-          </div>
-          <div class="col-md-2"><input id="abonoMonto" class="form-control" type="number" step="0.01" placeholder="Monto" required></div>
-          <div class="col-md-1"><button class="btn btn-warning w-100">Abonar</button></div>
-        </form>
-      </div>
+        </div>
 
-      <div class="card p-3">
-        <h5>Últimos abonos</h5>
-        <ul id="abonosList" class="list-group"></ul>
+        <div class="col-md-7 mb-3">
+          <div class="card p-3">
+            <h5>Últimos abonos</h5>
+            <ul id="abonosList" class="list-group"></ul>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- HISTORIAL -->
     <div class="tab-pane fade" id="tab-historial">
       <div class="card p-3 mb-3">
         <div class="row g-2 align-items-center">
           <div class="col-md-4">
             <input id="historialFiltro" class="form-control" placeholder="Buscar por cliente (nombre) o dejar vacío para todos">
           </div>
-          <div class="col-md-8 text-end">
-            <button id="btnRefrescarHistorial" class="btn btn-outline-primary">Refrescar</button>
+          <div class="col-md-4 text-start">
+             <button id="btnExportarHistorial" class="btn btn-info">Exportar a CSV</button>
+          </div>
+          <div class="col-md-4 text-end">
+            <button id="btnRefrescarHistorial" class="btn btn-outline-primary">Refrescar Historial</button>
           </div>
         </div>
       </div>
@@ -179,13 +226,44 @@
           </table>
         </div>
       </div>
-
     </div>
-
   </div>
+
+  <div aria-live="polite" aria-atomic="true" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 </div>
 
-<script type="module" src="main.js"></script>
+<div class="modal fade" id="clientProfileModal" tabindex="-1" aria-labelledby="clientProfileModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="clientProfileModalLabel">Perfil de Cliente: <span id="modalClientName"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <h6>Datos de Contacto</h6>
+            <p><strong>Teléfono:</strong> <span id="modalClientPhone"></span></p>
+          </div>
+          <div class="col-md-6 text-end">
+            <h6>Resumen Financiero</h6>
+            <p><strong>Saldo Total Pendiente:</strong> <span id="modalClientTotalDue" class="fs-4 text-danger"></span></p>
+          </div>
+        </div>
+        
+        <h6 class="border-bottom pb-2">Préstamos Históricos</h6>
+        <div id="modalClientPrestamosList" class="list-group">
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-success" id="modalBtnNewLoan">➕ Nuevo Préstamo</button>
+        <button type="button" class="btn btn-warning" id="modalBtnNewAbono">💸 Registrar Abono</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
