@@ -595,6 +595,54 @@ function refreshDashboard(){
 
 document.querySelector('button[data-bs-target="#tab-dashboard"]')?.addEventListener('shown.bs.tab', () => { refreshDashboard(); });
 
+
+// ============================================================
+// 🛠 REGULARIZAR PRÉSTAMO (ajustar cuotas pasadas)
+// ============================================================
+
+document.getElementById("btnRegularizarPrestamo")?.addEventListener("click", () => {
+    const sel = document.getElementById("regularizarPrestamo");
+    sel.innerHTML = "";
+    for (const pid in prestamosByUser) {
+        const p = prestamosByUser[pid];
+        const cliente = clientsById[p.clienteId]?.nombre || "Cliente desconocido";
+        sel.innerHTML += `<option value="${pid}">${cliente} — ${money(p.monto)}</option>`;
+    }
+    new bootstrap.Modal(document.getElementById("regularizarModal")).show();
+});
+
+document.getElementById("btnGuardarRegularizacion")?.addEventListener("click", async () => {
+    const pid = document.getElementById("regularizarPrestamo").value;
+    const pagadas = parseInt(document.getElementById("regularizarPagadas").value || 0);
+    const fechaInicio = new Date(document.getElementById("regularizarFechaInicio").value);
+    if (!pid || !fechaInicio) return showToast("Seleccione préstamo y fecha válida", "danger");
+
+    try {
+        const cuotas = cuotasByPrestamo[pid] || [];
+        const nuevasFechas = cuotas.map((c, i) => {
+            const f = new Date(fechaInicio);
+            f.setMonth(f.getMonth() + i);
+            return f;
+        });
+
+        for (let i = 0; i < cuotas.length; i++) {
+            const c = cuotas[i];
+            const cuotaRef = doc(db, "cuotas", c.id);
+            await updateDoc(cuotaRef, {
+                vencimiento: nuevasFechas[i],
+                pagada: i < pagadas
+            });
+        }
+
+        showToast("Préstamo regularizado correctamente.", "success");
+        bootstrap.Modal.getInstance(document.getElementById("regularizarModal"))?.hide();
+
+    } catch (e) {
+        console.error(e);
+        showToast("Error al regularizar préstamo", "danger");
+    }
+});
+
 // ÚLTIMOS ABONOS - RENDER
 function renderUltimosAbonos() {
     const ul = $id("abonosList");
